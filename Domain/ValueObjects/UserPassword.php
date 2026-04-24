@@ -2,19 +2,65 @@
 require_once __DIR__ . '/../Exceptions/InvalidUserPasswordException.php';
 class UserPassword
 {
-    private $value;
-    public function __construct($value)
+    private const MIN_PLAIN_LENGTH = 8;
+
+    private const MIN_STORED_LENGTH = 8;
+
+    private string $value;
+
+
+    public function __construct(string $value)
     {
-        $normalized = trim((string) $value);
+        $normalized = trim($value);
         if ($normalized === '') {
             throw InvalidUserPasswordException::becauseValueIsEmpty();
         }
-        if (strlen($normalized) < 8) {
-            throw InvalidUserPasswordException::becauseLengthIsTooShort(8);
+        if (strlen($normalized) < self::MIN_STORED_LENGTH) {
+            throw InvalidUserPasswordException::becauseLengthIsTooShort(self::MIN_STORED_LENGTH);
         }
         $this->value = $normalized;
     }
-    public function value() { return $this->value; }
-    public function equals(UserPassword $other) { return $this->value === $other->value(); }
-    public function __toString() { return $this->value; }
+
+    public static function fromPlainText(string $raw): self
+    {
+        $plain = trim($raw);
+        if ($plain === '') {
+            throw InvalidUserPasswordException::becauseValueIsEmpty();
+        }
+        if (strlen($plain) < self::MIN_PLAIN_LENGTH) {
+            throw InvalidUserPasswordException::becauseLengthIsTooShort(self::MIN_PLAIN_LENGTH);
+        }
+
+        $hash = password_hash($plain, PASSWORD_BCRYPT);
+        if ($hash === false) {
+            throw new \RuntimeException('No se pudo generar el hash de contraseña.');
+        }
+
+        return new self($hash);
+    }
+
+    public static function fromHash(string $hash): self
+    {
+        return new self($hash);
+    }
+
+    public function value(): string
+    {
+        return $this->value;
+    }
+
+    public function verifyPlain(string $plain): bool
+    {
+        return password_verify($plain, $this->value);
+    }
+
+    public function equals(self $other): bool
+    {
+        return hash_equals($this->value, $other->value);
+    }
+
+    public function __toString(): string
+    {
+        return $this->value;
+    }
 }
